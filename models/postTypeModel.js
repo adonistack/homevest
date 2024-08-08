@@ -2,29 +2,12 @@ const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
 const postTypeSchema = new Schema({
-    name: {
-        type: String,
-        required: true
-    },
-    slug: {
-        type: String,
-    },
-    description: {
-        type: String,
-    },
-    media: {
-        type: Schema.Types.ObjectId,
-        ref: 'Media'
-    },
-    count: {
-        type: Number,
-        default: 0
-    },
-    owner: {
-        type: Schema.Types.ObjectId,
-        ref: 'User',
-        required: true
-      },
+    name: { type: String, trim: true, unique: true},
+    slug: { type: String, trim: true, unique: true},
+    description: { type: String, trim: true},
+    media: { type: Schema.Types.ObjectId, ref: 'Media'},
+    count: { type: Number, default: 0 },
+    owner: { type: Schema.Types.ObjectId, ref: 'User',},
 }, { timestamps: true });
 
 postTypeSchema.statics.updateCount = async function(postTypeId) {
@@ -32,14 +15,9 @@ postTypeSchema.statics.updateCount = async function(postTypeId) {
     await this.findByIdAndUpdate(postTypeId, { count: count });
 };
 
-postTypeSchema.pre('save', function(next) {
-  // Populate fields from uploaded file data
-  if (this.isNew && this.data) {
-    this.slug = this.slug || 'default_slug'; // Update with actual slug logic
-    this.owner = this.owner || 'default_owner'; // Update with actual owner logic
 
-  }
-  next();
-});
+// Adding indexes for unique fields
+postTypeSchema.index({ slug: 1 }, { unique: true });
+postTypeSchema.index({ name: 1 }, { unique: true });
 
 module.exports = mongoose.model('PostType', postTypeSchema);

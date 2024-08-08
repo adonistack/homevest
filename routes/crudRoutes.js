@@ -6,7 +6,7 @@ const createCrudRoutes = (controller) => {
   router.get('/', controller.getItems);
   router.get('/:_id', controller.getItem);
   router.get('/slug/:slug', controller.getItemBySlug);
-  router.post('/', controller.createItem);
+  router.post('/',  controller.createItem);
   router.post('/bulk', controller.createManyItems);
   router.put('/:_id', controller.updateItem);
   router.put('/bulk', controller.updateManyItems);

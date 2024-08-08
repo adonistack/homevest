@@ -12,13 +12,14 @@ if (isDevelopment) {
         res.status(403).send('Signup is disabled in production mode');
     });
 }
-router.post('/sign-in', authController.createLongin);
+router.post('/sign-in', authController.createLogin);
 router.post('/forgot-password', authController.forgotPassword);
 router.post('/reset-password', authController.resetPassword);
 router.post('/logout', authController.logout);
 router.get('/profile', authController.getCurrentUser);
-router.get('/users', authController.getAllUsers);
 router.get('/verifyToken', authController.verifyToken);
+
+router.get('/users', authController.getAllUsers);
 router.get('/user/:id', authController.getUserById);
 router.patch('/update-user', authController.updateCurrentUser);
 router.delete('/delete-account', authController.deleteAccount);

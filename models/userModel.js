@@ -12,6 +12,7 @@ const userSchema = new Schema({
     required: true,
     unique: true
   },
+  roles: [{ type: String }],
   isAdmin: {
     type: Boolean,
     default: false
@@ -30,6 +31,14 @@ const userSchema = new Schema({
   },
  
 }, { timestamps: true });
+
+
+userSchema.pre('save', function(next) {
+  if (this.isAdmin) {
+    this.roles.push('admin');
+  }
+  next();
+});
 
 
 // Pre-save hook for hashing password

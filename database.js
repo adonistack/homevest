@@ -4,24 +4,32 @@ const dotenv = require('dotenv');
 
 dotenv.config();
 let bucket;
+let mongoClient;
 
 const connectToDatabase = async () => {
-  
   try {
-    await mongoose.connect(process.env.DB_URI);
+    // Connect using Mongoose
+     mongoose.connect(process.env.DB_URI , {
+      
+    });
     console.log('MongoDB connected successfully');
-    const client = new MongoClient(process.env.DB_URI);
-    await client.connect();
-    const db = client.db();
+    
+    // Connect using MongoClient for GridFS
+    mongoClient = new MongoClient(process.env.DB_URI, {
+ 
+    });
+    await mongoClient.connect();
+    
+    const db = mongoClient.db();
     bucket = new GridFSBucket(db, { bucketName: 'uploads' });
     console.log('Storage initialized');
+    
     mongoose.set('strictPopulate', false);
   } catch (err) {
     console.error('MongoDB connection error:', err);
     process.exit(1);
   }
 };
-
 
 const getBucket = () => {
   if (!bucket) {
@@ -30,4 +38,13 @@ const getBucket = () => {
   return bucket;
 };
 
-module.exports = { connectToDatabase, getBucket };
+const closeConnections = async () => {
+  if (mongoClient) {
+    await mongoClient.close();
+    console.log('MongoClient connection closed');
+  }
+  await mongoose.disconnect();
+  console.log('Mongoose connection closed');
+};
+
+module.exports = { connectToDatabase, getBucket, closeConnections };

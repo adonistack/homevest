@@ -38,7 +38,7 @@ exports.createAccount = async (req, res) => {
   }
 };
 
-exports.createLongin = async (req, res) => {
+exports.createLogin = async (req, res) => {
   const { email, password } = req.body;
 
   try {
@@ -52,7 +52,7 @@ exports.createLongin = async (req, res) => {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
-    const token = jwt.sign({ email: user.email, id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    const token = jwt.sign({ email: user.email, id: user._id }, process.env.JWT_SECRET, { expiresIn: '240h' });
 
     return res.status(200 || 201).json({
       message: 'Login successful',

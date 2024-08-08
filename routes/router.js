@@ -18,7 +18,4 @@ router.use('/media', createCrudRoutes(mediaController));
 router.use('/leads', createCrudRoutes(leadController));
 router.use('/characteristics', createCrudRoutes(characteristicController));
 
-
-
-
 module.exports = router;

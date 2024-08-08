@@ -4,7 +4,8 @@ const authenticate = (req, res, next) => {
   const token = req.header('Authorization')?.replace('Bearer ', '');
 
   if (!token) {
-    return res.unauthorized('Please authenticate.');
+    console.log('Authentication token not provided');
+    return res.status(401).json({ msg: 'Please authenticate.' });
   }
 
   try {
@@ -12,28 +13,58 @@ const authenticate = (req, res, next) => {
     req.user = decoded;
     next();
   } catch (err) {
-    res.unauthorized();
+    console.error('Token verification failed:', err.message);
+    res.status(401).json({ msg: 'Unauthorized' });
   }
 };
 
-const authorizeOwnerOrAdmin = (Model) => {
-  return async (req, res, next) => {
-    try {
-      const item = await Model.findById(req.params._id);
-      if (!item) {
-        return res.notFound('Item not found');
-      }
+const checkRole = (roles) => {
+  return (req, res, next) => {
+    const userRoles = req.user?.roles || [];
 
-      if (item.owner.toString() !== req.user.id && !req.user.isAdmin) {
-        return res.forbidden('Access Denied: You do not have permission to perform this action');
-      }
-
+    if (roles.some(role => userRoles.includes(role))) {
       next();
-    } catch (error) {
-      console.error('Authorization Error:', error.message);
-      res.internalServerError('Something went wrong');
+    } else {
+      console.log(`User does not have required roles: ${roles}`);
+      res.status(403).json({ msg: 'Forbidden' });
     }
   };
 };
 
-module.exports = { authenticate, authorizeOwnerOrAdmin };
+const authorizeOwnerOrRole = (Model, roles = []) => {
+  return async (req, res, next) => {
+    try {
+      const item = await Model.findById(req.params._id);
+
+      if (!item) {
+        console.log(`Item not found: ${req.params._id}`);
+        return res.status(404).json({ msg: 'Item not found' });
+      }
+
+      const itemOwnerId = item.owner ? item.owner.toString() : null;
+      const userId = req.user?.id ? req.user.id.toString() : null;
+
+      if (!itemOwnerId || !userId) {
+        console.error('Authorization data is missing');
+        return res.status(500).json({ msg: 'Authorization data is missing' });
+      }
+
+      const isOwner = itemOwnerId === userId;
+      const userRoles = req.user.roles || [];
+      const hasRole = roles.some(role => userRoles.includes(role));
+
+      if (!isOwner && !hasRole) {
+        console.log(`User is not authorized: User ID: ${userId}, Item Owner ID: ${itemOwnerId}`);
+        return res.status(403).json({ msg: 'Forbidden' });
+      }
+
+      req.actionMadeBy = isOwner ? 'owner' : hasRole ? 'role' : 'unknown';
+      next();
+    } catch (error) {
+      console.error('Authorization Error:', error.message);
+      res.status(500).json({ msg: 'Something went wrong' });
+    }
+  };
+};
+
+module.exports = { authenticate, checkRole, authorizeOwnerOrRole };
