@@ -169,20 +169,35 @@ const initController = (Model, modelName, customMethods = [], uniqueFields = [])
     ],
     
     getItems: [
-      async (req, res) => {
-        const { page = 1, limit = 10 } = req.query;
-        try {
-          const items = await Model.find()
-            .populate('media')
-            .skip((page - 1) * limit)
-            .limit(Number(limit));
-          const total = await Model.countDocuments();
-          res.status(200).json({ items, total });
-        } catch (error) {
-          res.status(500).json({ message: `Failed to retrieve ${modelName}s`, error: error.message });
+  async (req, res) => {
+    const { page = 1, limit = 10, ...filters } = req.query;
+
+    try {
+      const query = {};
+      Object.entries(filters).forEach(([key, value]) => {
+        if (key === 'keyword') {
+          query.name = { $regex: value, $options: 'i' };
+        } else if (Array.isArray(value)) {
+          query[key] = { $in: value };
+        } else {
+          query[key] = value;
         }
-      }
-    ],
+      });
+
+      const items = await Model.find(query)
+        .populate('media')
+        .skip((page - 1) * limit)
+        .limit(Number(limit));
+        
+      const total = await Model.countDocuments(query);
+
+      res.status(200).json({ items, total });
+    } catch (error) {
+      res.status(500).json({ message: `Failed to retrieve ${modelName}s`, error: error.message });
+    }
+  }
+],
+
     
 
     getItem:[ 
