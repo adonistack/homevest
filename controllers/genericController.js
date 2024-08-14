@@ -171,35 +171,32 @@ const initController = (Model, modelName, customMethods = [], uniqueFields = [])
     getItems: [
   async (req, res) => {
     const { page = 1, limit = 10, ...filters } = req.query;
-
     try {
       const query = {};
       Object.entries(filters).forEach(([key, value]) => {
         if (key === 'keyword') {
           query.name = { $regex: value, $options: 'i' };
-        } else if (Array.isArray(value)) {
-          query[key] = { $in: value };
+        } else if (value.includes(',')) {
+          query[key] = { $in: value.split(',').map(val => val.trim()) };
         } else {
-          query[key] = value;
+          if (isNaN(value)) {
+            query[key] = { $regex: value, $options: 'i' };
+          } else {
+            query[key] = value; 
+          }
         }
       });
-
       const items = await Model.find(query)
         .populate('media')
         .skip((page - 1) * limit)
         .limit(Number(limit));
-        
       const total = await Model.countDocuments(query);
-
       res.status(200).json({ items, total });
     } catch (error) {
       res.status(500).json({ message: `Failed to retrieve ${modelName}s`, error: error.message });
     }
   }
 ],
-
-    
-
     getItem:[ 
       async (req, res) => {
       try {
@@ -226,7 +223,6 @@ const initController = (Model, modelName, customMethods = [], uniqueFields = [])
       }
     }],
 
-
     updateItem: [
       authenticate,
       authorizeOwnerOrRole(Model, ['admin']),
@@ -241,19 +237,15 @@ const initController = (Model, modelName, customMethods = [], uniqueFields = [])
               linkedObjects[key] = value;
             }
           }
-
           const linkedObjectIds = await createOrUpdateLinkedObjects(linkedObjects, Model);
           const itemData = { ...req.body, ...linkedObjectIds };
-
           if (req.media) {
             itemData.media = req.media._id;
           }
-
           const item = await Model.findByIdAndUpdate(req.params._id, itemData, { new: true });
           if (!item) {
             return res.status(404).json({ message: `${modelName} not found` });
           }
-
           res.status(200).json({
             message: `${modelName} updated successfully`,
             data: item.toJSON(),
