@@ -5,7 +5,7 @@ const crypto = require('crypto');
 const sendEmail = require('../smtp/email/emailSender'); 
 
 exports.createAccount = async (req, res) => {
-  const { firstName, lastName, userName, email, password } = req.body;
+  const {userName, email, password } = req.body;
 
   try {
     const userEmail = await User.findOne({ email });
@@ -19,10 +19,7 @@ exports.createAccount = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const result = await User.create({
-      firstName,
-      lastName,
-      userName,
-      email,
+      ...req.body,
       password: hashedPassword
     });
 

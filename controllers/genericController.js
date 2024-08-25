@@ -1,4 +1,5 @@
 const { validationResult } = require('express-validator');
+const Category = require('../models/categoryModel');
 const { dynamicUpload } = require('../middlewares/uploadFilesMiddleware');
 const { authenticate, authorizeOwnerOrRole } = require('../middlewares/authenticationMiddleware');
 
@@ -96,7 +97,6 @@ const initController = (Model, modelName, customMethods = [], uniqueFields = [])
       async (req, res) => {
         try {
           const owner = req.user ? req.user.id : null;
-          
           const linkedObjects = {};
           for (const [key, value] of Object.entries(req.body)) {
             if (key.startsWith('linkedObject_')) {
@@ -168,35 +168,86 @@ const initController = (Model, modelName, customMethods = [], uniqueFields = [])
       }
     ],
     
-    getItems: [
-  async (req, res) => {
-    const { page = 1, limit = 10, ...filters } = req.query;
-    try {
-      const query = {};
-      Object.entries(filters).forEach(([key, value]) => {
-        if (key === 'keyword') {
-          query.name = { $regex: value, $options: 'i' };
-        } else if (value.includes(',')) {
-          query[key] = { $in: value.split(',').map(val => val.trim()) };
-        } else {
-          if (isNaN(value)) {
-            query[key] = { $regex: value, $options: 'i' };
-          } else {
-            query[key] = value; 
-          }
+     getItems : [
+      async (req, res) => {
+        const { page = 1, limit = 10, ...filters } = req.query;
+    
+        try {
+          const query = {};
+    
+          const specialFieldHandlers = {
+            category: async (value) => {
+              const category = await Category.findOne({ slug: value });
+              return category ? category._id : null;
+            },
+            
+            keyword: (value) => {
+              return {
+                $or: [
+                  { title: { $regex: value, $options: 'i' } },
+                  { content: { $regex: value, $options: 'i' } },
+                  { name: { $regex: value, $options: 'i' } },
+                  { fileName: { $regex: value, $options: 'i' } }
+                ]
+              };
+            }
+          };
+    
+         
+
+          const rangeMappings = {
+            minPrice: { field: 'price', operator: '$gte' },
+            maxPrice: { field: 'price', operator: '$lte' },
+            minSqft: { field: 'sqft', operator: '$gte' },
+            maxSqft: { field: 'sqft', operator: '$lte' },
+            minYearBuilt: { field: 'yearBuilt', operator: '$gte' },
+            maxYearBuilt: { field: 'yearBuilt', operator: '$lte' },
+            minBedrooms: { field: 'bedrooms', operator: '$gte' },
+            maxBedrooms: { field: 'bedrooms', operator: '$lte' },
+            minBathrooms: { field: 'bathrooms', operator: '$gte' },
+            maxBathrooms: { field: 'bathrooms', operator: '$lte' },
+            minGarage: { field: 'garage', operator: '$gte' },
+            maxGarage: { field: 'garage', operator: '$lte' }
+          };
+    
+          const processFilterValue = (value) => {
+            if (value.includes(',')) {
+              return { $in: value.split(',').map(val => val.trim()) };
+            } else if (!isNaN(value)) {
+              return Number(value);
+            } else {
+              return { $regex: value, $options: 'i' };
+            }
+          };
+    
+          await Promise.all(Object.entries(filters).map(async ([key, value]) => {
+            if (specialFieldHandlers[key]) {
+              const processedValue = await specialFieldHandlers[key](value);
+              if (processedValue !== null) {
+                query[key] = processedValue;
+              }
+            } else if (rangeMappings[key]) {
+              const { field, operator } = rangeMappings[key];
+              query[field] = { ...query[field], [operator]: Number(value) };
+            } else {
+              query[key] = processFilterValue(value);
+            }
+          }));
+    
+          const items = await Model.find(query)
+            .populate('media')
+            .skip((page - 1) * limit)
+            .limit(Number(limit));
+    
+          const total = await Model.countDocuments(query);
+    
+          res.status(200).json({ items, total });
+        } catch (error) {
+          console.error('Failed to retrieve items:', error);
+          res.status(500).json({ message: 'Failed to retrieve items', error: error.message });
         }
-      });
-      const items = await Model.find(query)
-        .populate('media')
-        .skip((page - 1) * limit)
-        .limit(Number(limit));
-      const total = await Model.countDocuments(query);
-      res.status(200).json({ items, total });
-    } catch (error) {
-      res.status(500).json({ message: `Failed to retrieve ${modelName}s`, error: error.message });
-    }
-  }
-],
+      }
+    ],     
     getItem:[ 
       async (req, res) => {
       try {
