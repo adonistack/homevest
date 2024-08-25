@@ -21,9 +21,13 @@ const mimeTypes = {
   file: 'application/octet-stream',
 };
 
-const getMediaType = (ext) => {
-  return Object.entries(mediaExtensions).find(([_, extensions]) => extensions.includes(ext))?.[0] || 'unknown';
-};
+const mediaTypeMap = Object.entries(mediaExtensions).reduce((acc, [type, exts]) => {
+  exts.forEach(ext => acc[ext] = type);
+  return acc;
+}, {});
+
+const getMediaType = (ext) => mediaTypeMap[ext] || 'unknown';
+
 
 const getMimeType = (mediaType) => mimeTypes[mediaType] || 'application/octet-stream';
 
@@ -40,22 +44,18 @@ const storage = multer.memoryStorage();
 
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB file size limit
+  limits: { fileSize: 10 * 1024 * 1024 }, 
   fileFilter,
 });
 
 const createOrUpdateMedia = async (mediaData) => {
-  console.log('Creating or updating media with data:', mediaData);
 
-  // Check for existing media by URL
   const existingMedia = await Media.findOne({ url: mediaData.url });
 
   if (existingMedia) {
-    // Update existing media if necessary
     await Media.updateOne({ _id: existingMedia._id }, mediaData);
     return existingMedia._id;
   } else {
-    // Create new media
     const newMedia = new Media(mediaData);
     await newMedia.save();
     return newMedia._id;
@@ -104,7 +104,6 @@ const processFileUpload = async (file, body, user) => {
   });
 };
 const dynamicUpload = (req, res, next) => {
-  console.log('Starting dynamicUpload middleware');
   const fieldName = req.body.fieldName || 'file';
   const multerUpload = upload.single(fieldName);
 
@@ -115,22 +114,15 @@ const dynamicUpload = (req, res, next) => {
       return;
     }
 
-    console.log('Request body after dynamicUpload:', req.body);
-    console.log('Request file after dynamicUpload:', req.file);
 
     try {
       if (req.file) {
-        console.log('Processing file upload');
         const mediaId = await processFileUpload(req.file, req.body, req.user);
         req.media = await Media.findById(mediaId); // Retrieve media to attach to request
-        console.log('File uploaded successfully');
       } else if (Object.keys(req.body).length > 0 && req.body.url) {
-        console.log('Processing body data');
         const mediaId = await createOrUpdateMedia(req.body);
         req.media = await Media.findById(mediaId); // Retrieve media to attach to request
-        console.log('Body data processed successfully');
       } else {
-        console.log('No file or relevant body data provided.');
       }
 
       next();
