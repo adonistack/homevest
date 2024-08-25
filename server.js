@@ -93,19 +93,22 @@ app.get('/download/:mediaType/:filename', async (req, res) => {
 app.use('/api/v1', require('./routes/router'));
 
 const startServer = async () => {
-  await connectToDatabase();
-  const port = process.env.PORT || 3000;
-
-  app.listen(port, (err) => {
-    if (err) {
-
-      console.error(`Error starting server: ${err.message}`);
-      process.exit(1); 
-      
-    } else {
-      console.log(`Server running at http://localhost:${port}`);
-    }
-  });
+  try {
+    await connectToDatabase();
+    const port = process.env.PORT || 3000;
+    app.listen(port, (err) => {
+      if (err) {
+        console.error(`Error starting server: ${err.message}`);
+        process.exit(1);
+      } else {
+        console.log(`Server running at http://localhost:${port}`);
+      }
+    });
+  } catch (err) {
+    console.error(`Failed to connect to database: ${err.message}`);
+    process.exit(1);
+  }
 };
+
 
 startServer();

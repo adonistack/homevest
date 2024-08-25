@@ -1,23 +1,21 @@
 const mongoose = require('mongoose');
 const { MongoClient, GridFSBucket } = require('mongodb');
+const startCronJobs = require('./cron'); 
 const dotenv = require('dotenv');
 
 dotenv.config();
+
 let bucket;
 let mongoClient;
 
 const connectToDatabase = async () => {
   try {
     // Connect using Mongoose
-     mongoose.connect(process.env.DB_URI , {
-      
-    });
+    await mongoose.connect(process.env.DB_URI, { });
     console.log('MongoDB connected successfully');
     
     // Connect using MongoClient for GridFS
-    mongoClient = new MongoClient(process.env.DB_URI, {
- 
-    });
+    mongoClient = new MongoClient(process.env.DB_URI, { });
     await mongoClient.connect();
     
     const db = mongoClient.db();
@@ -25,6 +23,10 @@ const connectToDatabase = async () => {
     console.log('Storage initialized');
     
     mongoose.set('strictPopulate', false);
+
+    // Start cron jobs after successful database connection
+    startCronJobs();
+
   } catch (err) {
     console.error('MongoDB connection error:', err);
     process.exit(1);
