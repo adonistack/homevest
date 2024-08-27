@@ -1,5 +1,7 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
+const applyToJSON = require('../middlewares/applyToJson');
+
 
 const characteristicSchema = new Schema({
     name: {type: String,},
@@ -9,4 +11,5 @@ const characteristicSchema = new Schema({
     owner: {type: Schema.Types.ObjectId,ref: 'User',required: true},
 }, { timestamps: true });
 
+applyToJSON(characteristicSchema);
 module.exports = mongoose.model('Characteristic', characteristicSchema);

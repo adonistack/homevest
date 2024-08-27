@@ -3,6 +3,11 @@ const Schema = mongoose.Schema;
 const applyToJSON = require('../middlewares/applyToJson');
 
 
+const characteristicValueSchema = new Schema({
+    characteristic: { type: Schema.Types.ObjectId, required: true, ref: 'Characteristic' },
+    value: { type: Boolean, default: false }
+}, { _id: false });
+
 const realEstateSchema = new Schema({
     title: { type: String },
     content: { type: String },
@@ -20,8 +25,8 @@ const realEstateSchema = new Schema({
     isActive: { type: Boolean, default: true },
     isFeatured: { type: Boolean, default: false },
     media: [{ type: Schema.Types.ObjectId, ref: 'Media' }],
-    characteristics: [{ _id: { type: Schema.Types.ObjectId, ref: 'Characteristic' }, value: Boolean }],
-    propertyType: { type: Schema.Types.ObjectId, ref: 'PostType', required: true },
+    characteristics: [characteristicValueSchema], 
+    propertyType: { type: Schema.Types.ObjectId, ref: 'PropertyType', required: true },
     category: { type: Schema.Types.ObjectId, ref: 'Category', required: true },
     owner: { type: Schema.Types.ObjectId, ref: 'User', required: true },
    
