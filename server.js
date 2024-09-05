@@ -25,7 +25,6 @@ app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 app.use(responseHandler);
 
 // Routes
-
 app.get('/:mediatype/:ext', (req, res) => {
   const ext = `.${req.params.ext.toLowerCase()}`;
   if (Object.values(mediaExtensions).flat().includes(ext)) {
@@ -109,6 +108,5 @@ const startServer = async () => {
     process.exit(1);
   }
 };
-
 
 startServer();
