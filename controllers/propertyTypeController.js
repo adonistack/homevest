@@ -6,7 +6,7 @@ const propertyTypeController = initController(
   "PropertyType", 
   [], 
   ['slug', 'name'], 
-
+  ['media', 'owner']
 );
 
 module.exports = propertyTypeController;

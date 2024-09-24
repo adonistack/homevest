@@ -3,14 +3,17 @@ const Category = require('../models/categoryModel');
 const { dynamicUpload } = require('../middlewares/uploadFilesMiddleware');
 const { authenticate, authorizeOwnerOrRole } = require('../middlewares/authenticationMiddleware');
 
-const initController = (Model, modelName, customMethods = [], uniqueFields = []) => {
-  const validateRequest = (validations) => async (req, res, next) => {
-    await Promise.all(validations.map(validation => validation.run(req)));
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-    next();
+const initController = (Model, modelName, customMethods = [], uniqueFields = [], populateFields = [], nestedPopulateFields = []) => {
+
+  const validateRequest = (validations) => {
+    return async (req, res, next) => {
+      await Promise.all(validations.map(validation => validation.run(req)));
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+      next();
+    };
   };
 
   const checkUniqueFields = (uniqueFields, Model, modelName, isUpdate = false) => async (req, res, next) => {
@@ -18,9 +21,11 @@ const initController = (Model, modelName, customMethods = [], uniqueFields = [])
       for (const field of uniqueFields) {
         if (req.body[field]) {
           const query = { [field]: req.body[field] };
+          
           if (isUpdate && req.params._id) {
             query._id = { $ne: req.params._id };
           }
+
           const existingItem = await Model.findOne(query);
           if (existingItem) {
             return res.status(400).json({
@@ -31,7 +36,7 @@ const initController = (Model, modelName, customMethods = [], uniqueFields = [])
       }
       next();
     } catch (error) {
-      return res.status(500).json({
+      res.status(500).json({
         message: `Failed to check unique fields for ${modelName}`,
         error: error.message,
       });
@@ -40,36 +45,71 @@ const initController = (Model, modelName, customMethods = [], uniqueFields = [])
 
   const createOrUpdateLinkedObjects = async (linkedObjects, Model) => {
     const result = {};
+
     for (const [key, value] of Object.entries(linkedObjects)) {
       if (Array.isArray(value)) {
         result[key] = await Promise.all(value.map(async (item) => {
           if (item) {
-            if (item._id) return item._id;
-            const existingItem = await Model.findOne({ fileName: item.fileName });
-            if (existingItem) return existingItem._id;
-            const newItem = new Model(item);
-            await newItem.save();
-            return newItem._id;
+            if (item._id) {
+              return item._id;
+            } else {
+              const existingItem = await Model.findOne({ fileName: item.fileName });
+              if (existingItem) {
+                return existingItem._id;
+              } else {
+                const newItem = new Model(item);
+                await newItem.save();
+                return newItem._id;
+              }
+            }
           }
           return '';
         }));
       } else {
         if (value) {
-          if (value._id) result[key] = value._id;
-          const existingItem = await Model.findOne({ fileName: value.fileName });
-          if (existingItem) result[key] = existingItem._id;
-          const newItem = new Model(value);
-          await newItem.save();
-          result[key] = newItem._id;
+          if (value._id) {
+            result[key] = value._id;
+          } else {
+            const existingItem = await Model.findOne({ fileName: value.fileName });
+            if (existingItem) {
+              result[key] = existingItem._id;
+            } else {
+              const newItem = new Model(value);
+              await newItem.save();
+              result[key] = newItem._id;
+            }
+          }
         } else {
           result[key] = '';
         }
       }
     }
+
     return result;
   };
 
+  const populateQuery = (query, linkedObjectFields = [], nestedPopulateFields = []) => {
+    if (linkedObjectFields.length > 0) {
+      linkedObjectFields.forEach((field, index) => {
+        const populateOptions = {
+          path: field,
+          select: '-createdAt -updatedAt -password -__v -_id -owner -count',
+        };
   
+        if (nestedPopulateFields[index]) {
+          populateOptions.populate = {
+            path: nestedPopulateFields[index],
+            
+         
+          };
+        }
+  
+        query = query.populate(populateOptions);
+      });
+    }
+  
+    return query;
+  };
   
   return {
     createItem: [
@@ -214,6 +254,7 @@ const initController = (Model, modelName, customMethods = [], uniqueFields = [])
             .skip((page - 1) * limit)
             .limit(Number(limit));
     
+          itemsQuery = populateQuery(itemsQuery, populateFields, nestedPopulateFields);
 
           const items = await itemsQuery;
           const total = await Model.countDocuments(query);
@@ -232,6 +273,7 @@ const initController = (Model, modelName, customMethods = [], uniqueFields = [])
       async (req, res) => {
         try {
           let itemQuery = Model.findById(req.params._id);
+          itemQuery = populateQuery(itemQuery, populateFields, nestedPopulateFields);
           const item = await itemQuery;
           if (!item) {
             return res.status(404).json({ message: `${modelName} not found` });
@@ -250,6 +292,7 @@ const initController = (Model, modelName, customMethods = [], uniqueFields = [])
       async (req, res) => {
         try {
           let itemQuery = Model.findOne({ slug: req.params.slug });
+          itemQuery = populateQuery(itemQuery, populateFields, nestedPopulateFields);
           const item = await itemQuery;
           if (!item) {
             return res.status(404).json({ message: `${modelName} not found` });
@@ -267,7 +310,7 @@ const initController = (Model, modelName, customMethods = [], uniqueFields = [])
     updateItem: [
       authenticate,
       dynamicUpload,
-      authorizeOwnerOrRole(modelName),
+      authorizeOwnerOrRole(Model, modelName),
       checkUniqueFields(uniqueFields, Model, modelName, true),
       async (req, res) => {
         try {
@@ -309,8 +352,8 @@ const initController = (Model, modelName, customMethods = [], uniqueFields = [])
 
     updateManyItems: [
       authenticate,
-      authorizeOwnerOrRole(modelName),
-      async (req, res) => {
+      authorizeOwnerOrRole(Model, modelName),
+            async (req, res) => {
         try {
           const updatedCount = await Model.updateMany({ _id: { $in: req.body.ids } }, req.body.data);
           res.status(200).json({
@@ -327,7 +370,7 @@ const initController = (Model, modelName, customMethods = [], uniqueFields = [])
     
     deleteItem: [
       authenticate,
-      authorizeOwnerOrRole(modelName),
+      authorizeOwnerOrRole(Model, modelName),
       async (req, res) => {
         try {
           const item = await Model.findByIdAndDelete(req.params._id);
@@ -348,7 +391,7 @@ const initController = (Model, modelName, customMethods = [], uniqueFields = [])
 
     deleteManyItems: [
       authenticate,
-      authorizeOwnerOrRole(modelName),
+      authorizeOwnerOrRole(Model, modelName),
       async (req, res) => {
         try {
           const deletedCount = await Model.deleteMany({ _id: { $in: req.body.ids } });
